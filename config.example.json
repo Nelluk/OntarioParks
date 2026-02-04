@@ -3,6 +3,11 @@
   "end": "2026-07-17",
   "party_size": 2,
   "cookie_file": "tmp/op_cookies.json",
+  "auto_reserve": false,
+  "reserve_mode": "first",
+  "allow_existing_cart": false,
+  "app_language": "en-CA",
+  "app_version": "5.105.203",
   "parks": [
     {
       "name": "Arrowhead Provincial Park",

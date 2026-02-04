@@ -1,6 +1,6 @@
 # Ontario Parks Roofed Availability Watcher
 
-This is a small **personal-use** script that checks roofed accommodation availability on the Ontario Parks reservation site. It does **not** book anything. It only reports availability so you can decide when to book.
+This is a small **personal-use** script that checks roofed accommodation availability on the Ontario Parks reservation site. By default it only reports availability so you can decide when to book. There is an **optional** auto-reserve mode that adds a matching site to your cart (you still complete checkout manually).
 
 ## Who This Is For
 - Family and friends who want a simple way to check roofed accommodation availability.
@@ -57,6 +57,29 @@ Then run:
 
 **Preferred sites** are in priority order (first is highest priority). If any preferred site is available, the script reports the highest-ranked match.
 
+### Optional: Auto-Reserve (Adds To Cart)
+If enabled, the script will attempt to add the top-ranked matching site to your cart (a temporary hold). You still need to complete checkout in the browser.
+
+Enable in `config.json`:
+```json
+{
+  "auto_reserve": true,
+  "reserve_mode": "first",
+  "allow_existing_cart": false
+}
+```
+
+Or on the command line:
+```bash
+.venv/bin/python scripts/op_roofed_watch.py --use-config --reserve
+```
+
+Notes:
+- `reserve_mode` can be `first` (default) or `all`.
+- If your cart already has items, auto-reserve is skipped unless `allow_existing_cart` is true.
+- Auto-reserve requires the `XSRF-TOKEN` cookie to be present in `tmp/op_cookies.json`.
+- If auto-reserve fails with a 400/403, update `app_version` in `config.json` from the latest browser request headers.
+
 ### Useful Options
 - `--list-parks` Show all park names the system knows about
 - `--list-categories` Show the roofed categories detected by keywords
@@ -65,6 +88,9 @@ Then run:
 - `--available-code` If availability codes change (default is `5`)
 - `--use-config` Read search criteria and preferred sites from `config.json`
 - `--config` Use a different config path
+- `--reserve` Attempt to add the best match to the cart
+- `--reserve-mode` `first` or `all`
+- `--allow-existing-cart` Allow auto-reserve even if cart already has items
 
 ### Output
 The script prints JSON that looks like this:
@@ -89,6 +115,7 @@ The script prints JSON that looks like this:
 
 If the `available` list is empty, nothing matches right now.
 If a preferred site is found, the script prints a `MATCH:` line to stderr (useful for cron/email piping).
+If auto-reserve is enabled and succeeds, the script prints a `RESERVED:` line to stderr.
 
 ## Troubleshooting
 

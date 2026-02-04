@@ -71,6 +71,95 @@ Notes:
 - `resourceAvailabilities` is an object keyed by `resourceId`.
 - With `getDailyAvailability=true`, each resource has an array of daily `{ availability, remainingQuota }` entries.
 
+### Additional Availability/Resource Endpoints (Observed)
+- `GET /api/availability/resourcestatus`
+  - Used by the UI when a user clicks a specific site.
+- `GET /api/availability/resourcedailyavailability`
+  - Daily availability for a specific resource ID.
+- `POST /api/resource/feeDetails`
+  - Called when a specific site is selected to fetch pricing.
+
+### Cart / Booking Endpoints (Observed)
+- `GET /api/cart`
+  - Returns cart, transaction IDs, and booking arrays.
+- `GET /api/cart/newtransaction`
+  - Creates a new transaction for the current cart.
+- `GET /api/cart/lineitems`
+  - Fetches line items (requires `cartUid` and `cartTransactionUid`).
+- `POST /api/cart/commit`
+  - Commits a cart object. The UI appears to build a **booking object client‑side** and then commit the cart.
+- `POST /api/availability/releaseBlocker`
+  - Releases blockers from cart (used by UI when clearing reservations).
+- `GET /api/booking/*` (e.g., `/api/booking/compact`, `/api/booking/getbooking`)
+  - Present in JS bundles, but some require auth/session context; direct calls returned 401/400 in testing.
+
+### Important Behavior Observations
+- The UI **does not** call a simple “add booking” API endpoint. Instead, it builds a booking payload in the client and then commits it with `/api/cart/commit`.
+- In campsite flows, the UI enforces **equipment selection** before allowing reservation (“Cannot Reserve: You must select equipment”). This may apply to some roofed flows depending on category.
+
+### Cart Commit Payload (Captured Feb 4, 2026)
+When a roofed site is added to cart from the UI, the front‑end posts:
+
+`POST /api/cart/commit?isCompleted=false&isSelfCheckIn=false`
+
+Headers include:
+- `x-xsrf-token` (value of the `XSRF-TOKEN` cookie)
+- `app-language` (e.g., `en-CA`)
+- `app-version` (observed `5.105.203`, may change over time)
+- `content-type: application/json`
+
+The request body includes a full `cart` object with **client-generated UUIDs** for:
+- `bookingUid`
+- `resourceBlockerUid`
+
+Key fields (simplified):
+```json
+{
+  "cart": {
+    "cartUid": "...",
+    "createTransactionUid": "...",
+    "newTransaction": { "cartTransactionUid": "..." },
+    "bookings": [
+      {
+        "bookingUid": "...",
+        "cartUid": "...",
+        "bookingCategoryId": 2,
+        "bookingModel": 0,
+        "createTransactionUid": "...",
+        "newVersion": {
+          "cartTransactionUid": "...",
+          "bookingCapacityCategoryCounts": [{"capacityCategoryId": -32768, "count": 1}],
+          "resourceBlockerUids": ["..."],
+          "startDate": "2026-06-09",
+          "endDate": "2026-06-11",
+          "equipmentCategoryId": null,
+          "resourceLocationId": -2147483641
+        }
+      }
+    ],
+    "resourceBlockers": [
+      {
+        "resourceBlockerUid": "...",
+        "bookingUid": "...",
+        "isReservation": true,
+        "newVersion": {
+          "cartTransactionUid": "...",
+          "startDate": "2026-06-09",
+          "endDate": "2026-06-11",
+          "resourceId": -2147482443,
+          "resourceLocationId": -2147483641
+        }
+      }
+    ]
+  }
+}
+```
+
+Notes:
+- `resourceId` comes from `/api/resourcelocation/resources`.
+- No `mapId` is present in the commit payload.
+- The booking references a resource blocker via `resourceBlockerUids`.
+
 ### Other Useful Endpoints
 - `GET /api/cart` → `cartUid`, `cartTransactionUid` needed for availability.
 - `GET /api/resourcecategory` → category names (filter to “Cabin”, “Cottage”, “Soft-sided Shelter”, etc.).
