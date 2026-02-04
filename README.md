@@ -10,6 +10,8 @@ This is a small **personal-use** script that checks roofed accommodation availab
 - A computer with Python 3 installed
 - Access to the Ontario Parks reservation site in a web browser
 
+**Windows users:** see `WINDOWS_README.md` for a step‑by‑step guide and a one‑command helper script.
+
 ## Setup (One Time)
 
 1. Open a terminal in this folder.
