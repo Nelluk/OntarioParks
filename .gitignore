@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# Virtualenv
+.venv/
+
+# Local cookies / temp
+tmp/*
+!tmp/.gitkeep
+
+# OS
+.DS_Store

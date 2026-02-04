@@ -46,8 +46,13 @@ def parse_date(value: str) -> str:
 
 
 def load_cookies(path: str) -> requests.Cookies:
-    with open(path, "r", encoding="utf-8") as f:
-        cookies = json.load(f)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            cookies = json.load(f)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(
+            f"Cookie file not found: {path}. Export browser cookies to this path before running."
+        ) from e
     jar = requests.Cookies()
     for c in cookies:
         jar.set(c.get("name"), c.get("value"), domain=c.get("domain"), path=c.get("path"))

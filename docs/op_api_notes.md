@@ -6,6 +6,7 @@ This doc summarizes internal endpoints observed on `https://reservations.ontario
 - Direct `curl` to the origin returns an Azure WAF JS challenge (403).
 - `curl_cffi` can access the API **if you provide cookies from a real browser session**.
 - Export cookies from a real session to `tmp/op_cookies.json` and reuse them for API calls.
+- **Do not commit cookies** to a public repo. Treat them as secrets.
 
 Minimal example (using `curl_cffi`):
 ```python
@@ -98,10 +99,18 @@ Example:
   --parks "Pinery Provincial Park, Killbear Provincial Park"
 ```
 
-## Cookie Export (Dev-Browser)
-If you’re using the dev-browser skill, export cookies after you’ve visited the site:
+## Cookie Export (General)
+Use any browser method you prefer to export cookies after you have visited the site (extensions, DevTools, or Playwright). Save them to `tmp/op_cookies.json` in this format:
+
+```json
+[
+  {
+    "name": "XSRF-TOKEN",
+    "value": "...",
+    "domain": "reservations.ontarioparks.ca",
+    "path": "/"
+  }
+]
 ```
-# from dev-browser (Playwright) context
-const cookies = await page.context().cookies();
-```
-Save them to `tmp/op_cookies.json` and reuse with `curl_cffi`.
+
+Then reuse them with `curl_cffi` as shown above.
