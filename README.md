@@ -43,12 +43,28 @@ Basic example:
   --parks "Pinery Provincial Park, Killbear Provincial Park"
 ```
 
+### Use A Config File (Recommended)
+Copy `config.example.json` to `config.json` and edit the parks and preferred sites:
+
+```bash
+cp config.example.json config.json
+```
+
+Then run:
+```bash
+.venv/bin/python scripts/op_roofed_watch.py --use-config
+```
+
+**Preferred sites** are in priority order (first is highest priority). If any preferred site is available, the script reports the highest-ranked match.
+
 ### Useful Options
 - `--list-parks` Show all park names the system knows about
 - `--list-categories` Show the roofed categories detected by keywords
 - `--park` Repeatable single park name (instead of comma-separated list)
 - `--category-keyword` Override what counts as “roofed”
 - `--available-code` If availability codes change (default is `5`)
+- `--use-config` Read search criteria and preferred sites from `config.json`
+- `--config` Use a different config path
 
 ### Output
 The script prints JSON that looks like this:
@@ -64,13 +80,15 @@ The script prints JSON that looks like this:
       "resourceLocationId": -2147483568,
       "available": [
         {"resourceId": -2147470000, "name": "Cabin 1", "categoryId": -2147483645}
-      ]
+      ],
+      "preferredMatch": {"resourceId": -2147470000, "name": "Cabin 1", "categoryId": -2147483645}
     }
   ]
 }
 ```
 
 If the `available` list is empty, nothing matches right now.
+If a preferred site is found, the script prints a `MATCH:` line to stderr (useful for cron/email piping).
 
 ## Troubleshooting
 

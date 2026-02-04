@@ -17,12 +17,13 @@ import argparse
 import datetime as dt
 import json
 import sys
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple, Optional
 
 from curl_cffi import requests
 
 BASE_URL = "https://reservations.ontarioparks.ca"
 DEFAULT_COOKIE_PATH = "tmp/op_cookies.json"
+DEFAULT_CONFIG_PATH = "config.json"
 DEFAULT_AVAILABLE_CODE = 5  # Observed as "Available" in testing
 DEFAULT_KEYWORDS = [
     "cabin",
@@ -57,6 +58,40 @@ def load_cookies(path: str) -> requests.Cookies:
     for c in cookies:
         jar.set(c.get("name"), c.get("value"), domain=c.get("domain"), path=c.get("path"))
     return jar
+
+
+def load_config(path: str) -> Dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(
+            f"Config file not found: {path}. Create it from config.example.json."
+        ) from e
+
+
+def normalize_site_token(s: str) -> Optional[str]:
+    digits = "".join(ch for ch in s if ch.isdigit())
+    return digits or None
+
+
+def match_preference(resource_name: str, preferred: List[str]) -> Optional[int]:
+    """
+    Returns the index in the preference list if the resource_name matches.
+    Matching logic:
+    - Exact (case-insensitive) string match
+    - Numeric token match (e.g., '472' matches 'Site 472')
+    """
+    name_norm = resource_name.strip().lower()
+    name_digits = normalize_site_token(resource_name)
+    for idx, pref in enumerate(preferred):
+        pref_norm = str(pref).strip().lower()
+        if pref_norm == name_norm:
+            return idx
+        pref_digits = normalize_site_token(pref_norm)
+        if pref_digits and name_digits and pref_digits == name_digits:
+            return idx
+    return None
 
 
 def get_json(session: requests.Session, path: str, params: Dict[str, Any] | None = None) -> Any:
@@ -97,8 +132,9 @@ def build_roofed_category_ids(categories: List[Dict[str, Any]], keywords: List[s
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start", required=True, type=parse_date)
-    parser.add_argument("--end", required=True, type=parse_date)
+    parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="Path to JSON config")
+    parser.add_argument("--start", type=parse_date)
+    parser.add_argument("--end", type=parse_date)
     parser.add_argument("--party-size", type=int, default=2)
     parser.add_argument("--parks", help="Comma-separated park names")
     parser.add_argument("--park", action="append", help="Park name (repeatable)")
@@ -111,7 +147,23 @@ def main() -> int:
     )
     parser.add_argument("--list-parks", action="store_true")
     parser.add_argument("--list-categories", action="store_true")
+    parser.add_argument("--use-config", action="store_true", help="Read defaults from config file")
     args = parser.parse_args()
+
+    config: Dict[str, Any] = {}
+    if args.use_config:
+        config = load_config(args.config)
+        if args.start is None and config.get("start"):
+            args.start = parse_date(config["start"])
+        if args.end is None and config.get("end"):
+            args.end = parse_date(config["end"])
+        if args.party_size == 2 and config.get("party_size"):
+            args.party_size = int(config["party_size"])
+        if args.cookie_file == DEFAULT_COOKIE_PATH and config.get("cookie_file"):
+            args.cookie_file = config["cookie_file"]
+
+    if not args.start or not args.end:
+        parser.error("Provide --start and --end (or use --use-config with start/end in config)")
 
     session = requests.Session()
     session.cookies = load_cookies(args.cookie_file)
@@ -133,12 +185,25 @@ def main() -> int:
         return 0
 
     park_inputs: List[str] = []
+    park_preferences: Dict[str, List[str]] = {}
+
+    # Config-driven parks
+    if args.use_config:
+        for p in config.get("parks", []):
+            name = p.get("name")
+            if not name:
+                continue
+            park_inputs.append(name)
+            prefs = p.get("preferred_sites") or []
+            park_preferences[name] = [str(x) for x in prefs]
+
+    # CLI overrides
     if args.parks:
         park_inputs.extend([p.strip() for p in args.parks.split(",") if p.strip()])
     if args.park:
         park_inputs.extend(args.park)
     if not park_inputs:
-        parser.error("Provide at least one park via --parks or --park")
+        parser.error("Provide at least one park via --parks/--park or enable --use-config")
 
     # Fetch cart IDs (required by availability API)
     cart = get_json(session, "/api/cart")
@@ -207,10 +272,24 @@ def main() -> int:
                         "categoryId": r.get("resourceCategoryId"),
                     })
 
+        preferred = park_preferences.get(display_name, []) or park_preferences.get(park_name, [])
+        best_match = None
+        if preferred:
+            # Find the first preferred site that is available
+            ranked = []
+            for item in available:
+                idx = match_preference(item["name"], preferred)
+                if idx is not None:
+                    ranked.append((idx, item))
+            if ranked:
+                ranked.sort(key=lambda x: x[0])
+                best_match = ranked[0][1]
+
         results.append({
             "park": display_name,
             "resourceLocationId": resource_location_id,
             "available": sorted(available, key=lambda x: x["name"]),
+            "preferredMatch": best_match,
         })
 
     print(json.dumps({
@@ -220,6 +299,13 @@ def main() -> int:
         "availableCode": args.available_code,
         "results": results,
     }, indent=2))
+
+    # Simple notification: print matches to stderr for easy cron/email piping
+    matches = [r for r in results if r.get("preferredMatch")]
+    if matches:
+        for r in matches:
+            m = r["preferredMatch"]
+            print(f"MATCH: {r['park']} -> {m['name']} (resourceId {m['resourceId']})", file=sys.stderr)
 
     return 0
 

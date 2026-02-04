@@ -1,0 +1,16 @@
+{
+  "start": "2026-07-15",
+  "end": "2026-07-17",
+  "party_size": 2,
+  "cookie_file": "tmp/op_cookies.json",
+  "parks": [
+    {
+      "name": "Arrowhead Provincial Park",
+      "preferred_sites": [222, 205]
+    },
+    {
+      "name": "Pinery Provincial Park",
+      "preferred_sites": [193, 175, 150]
+    }
+  ]
+}
